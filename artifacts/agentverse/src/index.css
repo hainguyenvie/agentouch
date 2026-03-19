@@ -1,0 +1,92 @@
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: 'Geist', sans-serif;
+  --font-display: 'Instrument Serif', serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --color-background: hsl(var(--background));
+  --color-surface: hsl(var(--surface));
+  --color-elevated: hsl(var(--elevated));
+  --color-overlay: hsl(var(--overlay));
+  
+  --color-foreground: hsl(var(--foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  
+  --color-border: hsl(var(--border));
+  --color-border-hover: hsl(var(--border-hover));
+  
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  
+  --color-accent: hsl(var(--accent));
+  --color-economy: hsl(var(--economy));
+  --color-success: hsl(var(--success));
+  --color-danger: hsl(var(--danger));
+
+  --animate-pulse-fast: pulse-opacity 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+:root {
+  /* Dark Terminal Refined Palette */
+  
+  /* Background Scale */
+  --background: 225 44% 4%;    /* #05070d base */
+  --surface: 225 44% 7%;       /* #0a0e1a surface */
+  --elevated: 225 41% 10%;     /* #0f1424 elevated */
+  --overlay: 225 34% 12%;      /* #141929 overlay */
+  
+  /* Text Colors */
+  --foreground: 210 40% 98%;   /* Almost white */
+  --muted: 225 30% 20%;        /* Deep gray/blue */
+  --muted-foreground: 215 20% 65%;
+  
+  /* Borders (rgba white equivalents) */
+  --border: 225 20% 16%;       /* ~6% white */
+  --border-hover: 225 20% 24%; /* ~10% white */
+  
+  /* Accents */
+  --primary: 172 66% 50%;      /* Electric Teal #2dd4bf */
+  --primary-foreground: 225 44% 4%;
+  
+  --accent: 172 66% 50%;       /* Electric Teal */
+  --economy: 38 92% 50%;       /* Warm Amber #f59e0b */
+  --success: 142 71% 45%;      /* Green #22c55e */
+  --danger: 0 84% 60%;         /* Red #ef4444 */
+}
+
+@layer base {
+  body {
+    @apply bg-background text-foreground antialiased font-sans overflow-x-hidden;
+    background-image: 
+      radial-gradient(circle at 50% 0%, hsl(var(--primary) / 0.05) 0%, transparent 50%),
+      radial-gradient(circle at 100% 100%, hsl(var(--economy) / 0.03) 0%, transparent 50%);
+    background-attachment: fixed;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display tracking-wide font-normal;
+  }
+}
+
+@keyframes pulse-opacity {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* Custom Scrollbar for terminal feel */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  @apply bg-background;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-elevated border border-border rounded-full;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-border-hover;
+}

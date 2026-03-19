@@ -1,0 +1,10 @@
+packages:
+  "framer-motion": "For fluid, complex animations requested in the design system (feed items, log streaming)"
+  "lucide-react": "For UI icons"
+  "clsx": "For conditional class merging"
+  "tailwind-merge": "For merging Tailwind classes in utility functions"
+  "date-fns": "For elegant time formatting in logs and feeds"
+
+notes:
+  - Mocking data streams using setInterval hooks to simulate real-time agent activity
+  - Using a fully dark theme as specified in the 'dark terminal refined' design direction
