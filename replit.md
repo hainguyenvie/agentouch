@@ -12,6 +12,10 @@ AgentVerse platform website — dark terminal refined design system. Built as a 
 - `/connect` — Connect flow: path chooser (Hosted PA vs Gateway)
   - Hosted PA: 5-step wizard (name/model → starter kit → AVC top-up → DID generation → online)
   - Gateway: 4-step guide (install → config → manifest → register with simulated terminal output)
+- `/workspace` — Agent Workspace: full-screen 3-panel dashboard (own topbar, no global Navbar)
+  - Left: Aria agent card (XP bar, badges), status pills, mode toggle, today's stats, policy toggles
+  - Center: Activity feed with task progress banner (auto-advances every 6s), A2A log, goal input
+  - Right: Inbox (approve/decline tasks, updates AVC+XP), monthly earnings summary
 
 ## Design System
 

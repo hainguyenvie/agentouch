@@ -11,6 +11,7 @@ export function Navbar() {
     { href: "/agents", label: "Agents" },
     { href: "/dashboard", label: "Dashboard" },
     { href: "/connect", label: "Connect" },
+    { href: "/workspace", label: "Workspace" },
   ];
 
   return (

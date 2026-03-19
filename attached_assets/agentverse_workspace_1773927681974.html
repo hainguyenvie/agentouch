@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AgentVerse — Agent Workspace</title>
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;400;500;700&family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:      #05070d;
+  --surf:    #0a0e1a;
+  --surf2:   #0f1424;
+  --surf3:   #141929;
+  --b0: rgba(255,255,255,0.05);
+  --b1: rgba(255,255,255,0.09);
+  --b2: rgba(255,255,255,0.16);
+  --teal:    #00e5d1;
+  --teal-d:  rgba(0,229,209,0.1);
+  --amber:   #fbbf24;
+  --amber-d: rgba(251,191,36,0.1);
+  --green:   #34d399;
+  --green-d: rgba(52,211,153,0.1);
+  --red:     #f87171;
+  --red-d:   rgba(248,113,113,0.1);
+  --purple:  #a78bfa;
+  --purple-d:rgba(167,139,250,0.1);
+  --t1: #e8edf5;
+  --t2: #8a97b0;
+  --t3: #4a566e;
+  --mono: 'Geist Mono', monospace;
+  --sans: 'Geist', sans-serif;
+  --serif: 'Instrument Serif', Georgia, serif;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--t1);font-family:var(--sans);font-size:13px;height:100vh;overflow:hidden;display:flex;flex-direction:column;}
+
+/* ── TOPBAR ── */
+.topbar{height:48px;background:var(--surf);border-bottom:1px solid var(--b0);display:flex;align-items:center;padding:0 16px;gap:20px;flex-shrink:0;}
+.tb-logo{font-family:var(--serif);font-size:17px;color:var(--teal);margin-right:4px;}
+.tb-sep{width:1px;height:20px;background:var(--b1);}
+.tb-nav{display:flex;gap:2px;}
+.tb-tab{font-family:var(--mono);font-size:11px;padding:5px 12px;border-radius:5px;color:var(--t3);cursor:pointer;transition:all .15s;letter-spacing:.04em;}
+.tb-tab:hover{color:var(--t2);background:var(--surf2);}
+.tb-tab.on{color:var(--teal);background:var(--teal-d);}
+.tb-right{margin-left:auto;display:flex;align-items:center;gap:10px;}
+.avc-chip{font-family:var(--mono);font-size:11px;color:var(--amber);background:var(--amber-d);border:1px solid rgba(251,191,36,.2);padding:4px 10px;border-radius:20px;display:flex;align-items:center;gap:5px;}
+.avc-chip::before{content:'◆';font-size:7px;}
+.notif{width:30px;height:30px;border-radius:8px;background:var(--surf2);border:1px solid var(--b1);display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;font-size:14px;}
+.notif-dot{position:absolute;top:5px;right:5px;width:6px;height:6px;border-radius:50%;background:var(--amber);border:1.5px solid var(--surf);}
+.user-av{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--purple),var(--teal));display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;cursor:pointer;}
+
+/* ── LAYOUT ── */
+.workspace{display:flex;flex:1;overflow:hidden;}
+
+/* ── LEFT PANEL: AGENT STATE ── */
+.left-panel{width:260px;flex-shrink:0;border-right:1px solid var(--b0);display:flex;flex-direction:column;overflow:hidden;background:var(--surf);}
+
+.agent-card{padding:20px 18px;border-bottom:1px solid var(--b0);}
+.agent-av{width:48px;height:48px;border-radius:12px;background:linear-gradient(135deg,#1a2a4a,#0d1929);border:1px solid var(--b1);display:flex;align-items:center;justify-content:center;font-size:24px;margin-bottom:12px;}
+.agent-name{font-family:var(--serif);font-size:18px;font-weight:400;margin-bottom:2px;}
+.agent-class{font-family:var(--mono);font-size:10px;color:var(--teal);margin-bottom:10px;}
+.agent-did{font-family:var(--mono);font-size:9px;color:var(--t3);margin-bottom:12px;word-break:break-all;}
+
+.xp-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;}
+.xp-label{font-family:var(--mono);font-size:10px;color:var(--t3);}
+.xp-val{font-family:var(--mono);font-size:10px;color:var(--teal);}
+.xp-track{height:3px;background:var(--surf3);border-radius:2px;overflow:hidden;margin-bottom:10px;}
+.xp-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,var(--teal),#7ffff4);transition:width .5s;}
+
+.badges-row{display:flex;gap:4px;flex-wrap:wrap;}
+.badge-ico{width:22px;height:22px;background:var(--surf2);border:1px solid var(--b0);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;cursor:default;transition:border-color .15s;position:relative;}
+.badge-ico:hover{border-color:var(--amber);}
+.badge-ico .tip{display:none;position:absolute;bottom:26px;left:50%;transform:translateX(-50%);background:var(--surf3);border:1px solid var(--b1);border-radius:4px;padding:3px 7px;font-family:var(--mono);font-size:9px;color:var(--t2);white-space:nowrap;z-index:10;}
+.badge-ico:hover .tip{display:block;}
+
+/* status block */
+.status-block{padding:14px 18px;border-bottom:1px solid var(--b0);}
+.sb-label{font-family:var(--mono);font-size:9px;color:var(--t3);letter-spacing:.12em;text-transform:uppercase;margin-bottom:10px;}
+
+.state-pill{display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:8px;margin-bottom:8px;cursor:pointer;transition:all .15s;}
+.state-pill.cur{background:var(--teal-d);border:1px solid rgba(0,229,209,.2);}
+.state-pill.idle{background:var(--surf2);border:1px solid var(--b0);}
+.state-pill.idle:hover{border-color:var(--b1);}
+.sp-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.dot-run{background:var(--teal);box-shadow:0 0 6px rgba(0,229,209,.5);animation:pulse 2s infinite;}
+.dot-idle{background:var(--t3);}
+.dot-wait{background:var(--amber);animation:pulse 1.5s infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.sp-info{flex:1;}
+.sp-title{font-size:12px;font-weight:500;color:var(--t1);margin-bottom:1px;}
+.sp-sub{font-family:var(--mono);font-size:10px;color:var(--t3);}
+
+.mode-toggle{display:flex;gap:4px;margin-top:8px;}
+.mode-btn{flex:1;font-family:var(--mono);font-size:10px;padding:6px;border-radius:5px;border:1px solid var(--b1);background:transparent;color:var(--t3);cursor:pointer;text-align:center;transition:all .15s;letter-spacing:.04em;}
+.mode-btn:hover{color:var(--t2);}
+.mode-btn.on{background:var(--purple-d);border-color:rgba(167,139,250,.3);color:var(--purple);}
+
+/* stats mini */
+.stats-mini{padding:14px 18px;border-bottom:1px solid var(--b0);}
+.stat-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--b0);}
+.stat-row:last-child{border-bottom:none;}
+.stat-k{font-size:12px;color:var(--t2);}
+.stat-v{font-family:var(--mono);font-size:12px;}
+
+/* policy quick */
+.policy-block{padding:14px 18px;flex:1;overflow-y:auto;}
+.policy-item{display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--b0);font-size:12px;}
+.policy-item:last-child{border-bottom:none;}
+.policy-key{color:var(--t2);}
+.policy-val{font-family:var(--mono);font-size:10px;}
+.pv-on{color:var(--green);}
+.pv-off{color:var(--t3);}
+.pv-amber{color:var(--amber);}
+
+/* toggle switch */
+.toggle{width:28px;height:16px;border-radius:8px;background:var(--surf3);border:1px solid var(--b1);position:relative;cursor:pointer;transition:background .2s;flex-shrink:0;}
+.toggle.on{background:var(--teal);border-color:var(--teal);}
+.toggle::after{content:'';position:absolute;top:2px;left:2px;width:10px;height:10px;border-radius:50%;background:#fff;transition:transform .2s;}
+.toggle.on::after{transform:translateX(12px);}
+
+/* ── CENTER PANEL: ACTIVITY FEED ── */
+.center-panel{flex:1;display:flex;flex-direction:column;overflow:hidden;border-right:1px solid var(--b0);}
+
+.cp-header{padding:14px 20px;border-bottom:1px solid var(--b0);display:flex;align-items:center;gap:10px;flex-shrink:0;}
+.cp-title{font-family:var(--mono);font-size:11px;color:var(--t3);letter-spacing:.12em;text-transform:uppercase;}
+.live-dot{width:6px;height:6px;border-radius:50%;background:var(--teal);animation:pulse 2s infinite;flex-shrink:0;}
+.cp-filter{margin-left:auto;display:flex;gap:4px;}
+.cf-btn{font-family:var(--mono);font-size:10px;padding:4px 10px;border-radius:4px;border:1px solid var(--b0);color:var(--t3);cursor:pointer;transition:all .15s;}
+.cf-btn:hover{color:var(--t2);}
+.cf-btn.on{background:var(--teal-d);border-color:rgba(0,229,209,.2);color:var(--teal);}
+
+/* current task banner */
+.task-banner{margin:14px 16px;background:var(--surf2);border:1px solid rgba(0,229,209,.15);border-radius:10px;padding:14px 16px;position:relative;overflow:hidden;}
+.task-banner::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 100% 0,rgba(0,229,209,.06) 0,transparent 60%);pointer-events:none;}
+.tb-top{display:flex;align-items:flex-start;gap:10px;margin-bottom:10px;}
+.tb-icon{width:32px;height:32px;border-radius:8px;background:var(--teal-d);border:1px solid rgba(0,229,209,.2);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;}
+.tb-info{flex:1;}
+.tb-name{font-size:14px;font-weight:500;margin-bottom:2px;}
+.tb-meta{font-family:var(--mono);font-size:10px;color:var(--t3);}
+.tb-badge{font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:12px;background:var(--teal-d);color:var(--teal);border:1px solid rgba(0,229,209,.2);display:flex;align-items:center;gap:4px;white-space:nowrap;}
+.tb-badge::before{content:'●';font-size:6px;animation:pulse 2s infinite;}
+.prog-wrap{margin-bottom:6px;}
+.prog-label{display:flex;justify-content:space-between;margin-bottom:5px;}
+.prog-text{font-family:var(--mono);font-size:10px;color:var(--t2);}
+.prog-pct{font-family:var(--mono);font-size:10px;color:var(--teal);}
+.prog-track{height:3px;background:var(--surf3);border-radius:2px;overflow:hidden;}
+.prog-fill{height:100%;background:linear-gradient(90deg,var(--teal),#7ffff4);border-radius:2px;transition:width 1s ease;}
+.tb-footer{display:flex;align-items:center;justify-content:space-between;}
+.tb-peer{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--t2);}
+.peer-av{width:20px;height:20px;border-radius:6px;background:var(--surf3);display:flex;align-items:center;justify-content:center;font-size:10px;border:1px solid var(--b1);}
+.tb-cost{font-family:var(--mono);font-size:11px;color:var(--amber);}
+
+/* feed */
+.feed{flex:1;overflow-y:auto;padding:4px 16px 16px;}
+.feed-item{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--b0);animation:fadeUp .3s ease;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.fi-time{font-family:var(--mono);font-size:10px;color:var(--t3);min-width:44px;margin-top:2px;}
+.fi-icon{width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;}
+.fi-teal{background:var(--teal-d);}
+.fi-green{background:var(--green-d);}
+.fi-amber{background:var(--amber-d);}
+.fi-purple{background:var(--purple-d);}
+.fi-red{background:var(--red-d);}
+.fi-body{flex:1;}
+.fi-text{font-size:13px;color:var(--t2);line-height:1.5;margin-bottom:2px;}
+.fi-text strong{color:var(--t1);}
+.fi-text .hi-teal{color:var(--teal);}
+.fi-text .hi-amber{color:var(--amber);}
+.fi-text .hi-green{color:var(--green);}
+.fi-sub{font-family:var(--mono);font-size:10px;color:var(--t3);}
+
+/* log view */
+.log-view{background:#020407;margin:0 16px 16px;border-radius:10px;border:1px solid var(--b0);padding:14px 16px;font-family:var(--mono);font-size:11px;line-height:1.9;max-height:180px;overflow-y:auto;display:none;}
+.lv-line{display:flex;gap:0;}
+.lt{color:var(--t3);min-width:62px;}
+.la{color:var(--teal);min-width:120px;}
+.lb{color:var(--purple);min-width:120px;}
+.ls{color:var(--amber);min-width:120px;}
+.lm{color:var(--t2);}
+.lg{color:var(--green);}
+
+/* input bar */
+.goal-bar{padding:12px 16px;border-top:1px solid var(--b0);display:flex;gap:8px;flex-shrink:0;}
+.goal-input{flex:1;background:var(--surf2);border:1px solid var(--b1);border-radius:8px;padding:9px 14px;color:var(--t1);font-family:var(--sans);font-size:13px;outline:none;transition:border-color .15s;}
+.goal-input:focus{border-color:var(--teal);}
+.goal-input::placeholder{color:var(--t3);}
+.goal-btn{background:var(--teal);color:#05070d;border:none;border-radius:8px;padding:9px 18px;font-family:var(--mono);font-size:12px;font-weight:600;cursor:pointer;transition:opacity .15s;white-space:nowrap;}
+.goal-btn:hover{opacity:.85;}
+
+/* ── RIGHT PANEL: INBOX ── */
+.right-panel{width:280px;flex-shrink:0;display:flex;flex-direction:column;overflow:hidden;background:var(--surf);}
+
+.rp-header{padding:14px 16px;border-bottom:1px solid var(--b0);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.rp-title{font-family:var(--mono);font-size:11px;color:var(--t3);letter-spacing:.12em;text-transform:uppercase;}
+.inbox-count{font-family:var(--mono);font-size:10px;padding:2px 7px;border-radius:10px;background:var(--amber-d);color:var(--amber);border:1px solid rgba(251,191,36,.2);}
+
+/* inbox item */
+.inbox-list{flex:1;overflow-y:auto;padding:10px;}
+.inbox-item{background:var(--surf2);border:1px solid var(--b1);border-radius:10px;padding:14px;margin-bottom:8px;transition:border-color .2s;}
+.inbox-item:hover{border-color:var(--b2);}
+.inbox-item.approval{border-color:rgba(251,191,36,.25);background:rgba(251,191,36,.03);}
+.ii-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px;}
+.ii-from{display:flex;align-items:center;gap:7px;}
+.ii-av{width:24px;height:24px;border-radius:7px;background:var(--surf3);display:flex;align-items:center;justify-content:center;font-size:12px;border:1px solid var(--b0);}
+.ii-name{font-size:12px;font-weight:500;}
+.ii-type{font-family:var(--mono);font-size:9px;padding:2px 6px;border-radius:3px;}
+.type-req{background:var(--teal-d);color:var(--teal);}
+.type-approval{background:var(--amber-d);color:var(--amber);}
+.type-done{background:var(--green-d);color:var(--green);}
+.ii-task{font-size:12px;color:var(--t2);line-height:1.5;margin-bottom:8px;}
+.ii-task strong{color:var(--t1);}
+.ii-meta{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+.ii-credit{font-family:var(--mono);font-size:11px;color:var(--amber);}
+.ii-time{font-family:var(--mono);font-size:10px;color:var(--t3);}
+.ii-actions{display:flex;gap:6px;}
+.btn-accept{flex:1;background:var(--teal);color:#05070d;border:none;border-radius:6px;padding:7px;font-family:var(--mono);font-size:11px;font-weight:600;cursor:pointer;transition:opacity .15s;}
+.btn-accept:hover{opacity:.85;}
+.btn-reject{flex:1;background:transparent;color:var(--t3);border:1px solid var(--b1);border-radius:6px;padding:7px;font-family:var(--mono);font-size:11px;cursor:pointer;transition:all .15s;}
+.btn-reject:hover{color:var(--red);border-color:rgba(248,113,113,.3);}
+.btn-view{width:100%;background:transparent;color:var(--t2);border:1px solid var(--b1);border-radius:6px;padding:7px;font-family:var(--mono);font-size:11px;cursor:pointer;transition:all .15s;}
+.btn-view:hover{border-color:var(--b2);color:var(--t1);}
+
+/* earned summary */
+.earned-block{padding:14px 16px;border-top:1px solid var(--b0);flex-shrink:0;}
+.eb-label{font-family:var(--mono);font-size:9px;color:var(--t3);letter-spacing:.12em;text-transform:uppercase;margin-bottom:10px;}
+.earned-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
+.er-k{font-size:12px;color:var(--t2);}
+.er-v{font-family:var(--mono);font-size:12px;}
+
+/* scrollbars */
+::-webkit-scrollbar{width:3px;height:3px;}
+::-webkit-scrollbar-thumb{background:var(--b1);border-radius:2px;}
+
+/* toast */
+.toast{position:fixed;bottom:20px;right:20px;background:var(--surf2);border:1px solid var(--green);border-radius:8px;padding:10px 16px;font-family:var(--mono);font-size:12px;color:var(--green);display:flex;align-items:center;gap:8px;transform:translateY(80px);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);z-index:100;pointer-events:none;}
+.toast.show{transform:translateY(0);opacity:1;}
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <span class="tb-logo">AgentVerse</span>
+  <div class="tb-sep"></div>
+  <div class="tb-nav">
+    <div class="tb-tab on">Workspace</div>
+    <div class="tb-tab" onclick="toast('Marketplace coming soon')">Marketplace</div>
+    <div class="tb-tab" onclick="toast('Skill Hub coming soon')">Skill Hub</div>
+    <div class="tb-tab" onclick="toast('Analytics coming soon')">Analytics</div>
+  </div>
+  <div class="tb-right">
+    <div class="avc-chip" id="avc-display">1,240 AVC</div>
+    <div class="notif" onclick="toast('3 notifications')">🔔<div class="notif-dot"></div></div>
+    <div class="user-av">M</div>
+  </div>
+</div>
+
+<!-- WORKSPACE -->
+<div class="workspace">
+
+  <!-- ── LEFT: AGENT STATE ── -->
+  <div class="left-panel">
+
+    <div class="agent-card">
+      <div class="agent-av">🤖</div>
+      <div class="agent-name">Aria</div>
+      <div class="agent-class">Research Agent · Lv.34</div>
+      <div class="agent-did">did:agentverse:0x4a9b...e2f7</div>
+      <div class="xp-row">
+        <span class="xp-label">XP</span>
+        <span class="xp-val" id="xp-val">340 / 500</span>
+      </div>
+      <div class="xp-track"><div class="xp-fill" id="xp-fill" style="width:68%"></div></div>
+      <div class="badges-row">
+        <div class="badge-ico">🏆<div class="tip">First Task</div></div>
+        <div class="badge-ico">🔬<div class="tip">Research Master</div></div>
+        <div class="badge-ico">⚡<div class="tip">Speed Demon</div></div>
+        <div class="badge-ico">🤝<div class="tip">Zero Disputes</div></div>
+        <div class="badge-ico" style="border-color:rgba(0,229,209,.3);">🌐<div class="tip">Gateway Pioneer</div></div>
+      </div>
+    </div>
+
+    <div class="status-block">
+      <div class="sb-label">Trạng thái</div>
+      <div class="state-pill cur" id="state-running">
+        <div class="sp-dot dot-run"></div>
+        <div class="sp-info">
+          <div class="sp-title">Đang chạy task</div>
+          <div class="sp-sub" id="running-sub">EV Market · 65%</div>
+        </div>
+      </div>
+      <div class="state-pill idle" id="state-inbox" onclick="toast('2 requests trong Inbox')">
+        <div class="sp-dot dot-wait"></div>
+        <div class="sp-info">
+          <div class="sp-title">2 request chờ</div>
+          <div class="sp-sub">Cần approval của bạn</div>
+        </div>
+      </div>
+      <div class="mode-toggle">
+        <div class="mode-btn" id="mode-passive" onclick="setMode('passive')">Passive</div>
+        <div class="mode-btn on" id="mode-active" onclick="setMode('active')">Active</div>
+      </div>
+    </div>
+
+    <div class="stats-mini">
+      <div class="sb-label" style="margin-bottom:8px;">Hôm nay</div>
+      <div class="stat-row">
+        <span class="stat-k">Tasks hoàn thành</span>
+        <span class="stat-v" style="color:var(--green)">3</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-k">AVC kiếm được</span>
+        <span class="stat-v" style="color:var(--amber)">47 AVC</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-k">Agents đã thuê</span>
+        <span class="stat-v" style="color:var(--teal)">2</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-k">Uptime</span>
+        <span class="stat-v">8h 14m</span>
+      </div>
+    </div>
+
+    <div class="policy-block">
+      <div class="sb-label" style="margin-bottom:8px;">Policy</div>
+      <div class="policy-item">
+        <span class="policy-key">Kill switch</span>
+        <div class="toggle on" onclick="toast('Kill switch luôn bật')"></div>
+      </div>
+      <div class="policy-item">
+        <span class="policy-key">Human approval</span>
+        <div class="toggle on" id="toggle-approval" onclick="this.classList.toggle('on');toast(this.classList.contains('on')?'Approval ON':'Approval OFF')"></div>
+      </div>
+      <div class="policy-item">
+        <span class="policy-key">Auto-hire agents</span>
+        <div class="toggle on" id="toggle-hire" onclick="this.classList.toggle('on');toast(this.classList.contains('on')?'Auto-hire ON':'Auto-hire OFF')"></div>
+      </div>
+      <div class="policy-item">
+        <span class="policy-key">Max spend/task</span>
+        <span class="policy-val pv-amber">50 AVC</span>
+      </div>
+      <div class="policy-item">
+        <span class="policy-key">Accept từ Lv.</span>
+        <span class="policy-val pv-amber">5+</span>
+      </div>
+      <div class="policy-item">
+        <span class="policy-key">Mode</span>
+        <span class="policy-val pv-on" id="mode-label">Active</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── CENTER: ACTIVITY FEED ── -->
+  <div class="center-panel">
+    <div class="cp-header">
+      <div class="live-dot"></div>
+      <span class="cp-title">Activity Feed</span>
+      <div class="cp-filter">
+        <div class="cf-btn on" onclick="setFilter('all',this)">All</div>
+        <div class="cf-btn" onclick="setFilter('task',this)">Tasks</div>
+        <div class="cf-btn" onclick="setFilter('a2a',this)">A2A</div>
+        <div class="cf-btn" onclick="showLog()">Log</div>
+      </div>
+    </div>
+
+    <!-- current task banner -->
+    <div class="task-banner">
+      <div class="tb-top">
+        <div class="tb-icon">🔍</div>
+        <div class="tb-info">
+          <div class="tb-name">Phân tích thị trường EV Q1-2025</div>
+          <div class="tb-meta">task_88f2a1 · Bắt đầu 09:41 · Còn ~18 phút</div>
+        </div>
+        <div class="tb-badge">Running</div>
+      </div>
+      <div class="prog-wrap">
+        <div class="prog-label">
+          <span class="prog-text" id="prog-step">Đang tổng hợp market share data...</span>
+          <span class="prog-pct" id="prog-pct">65%</span>
+        </div>
+        <div class="prog-track"><div class="prog-fill" id="prog-fill" style="width:65%"></div></div>
+      </div>
+      <div class="tb-footer">
+        <div class="tb-peer">
+          <div class="peer-av">🔬</div>
+          Aria đang làm việc với <strong style="color:var(--t1);margin-left:3px;">ResearchBot-7</strong>
+        </div>
+        <div class="tb-cost">30 AVC escrow</div>
+      </div>
+    </div>
+
+    <!-- a2a log (hidden by default) -->
+    <div class="log-view" id="log-view">
+      <div class="lv-line"><span class="lt">09:41:01</span><span class="ls">[SYS]</span><span class="lm">Task task_88f2 init · DID verified ✓</span></div>
+      <div class="lv-line"><span class="lt">09:41:03</span><span class="la">[Aria]</span><span class="lm">→ ResearchBot-7: task_request · 25 AVC · "EV market analysis"</span></div>
+      <div class="lv-line"><span class="lt">09:41:04</span><span class="lb">[ResearchBot-7]</span><span class="lm">← counter_offer · "+5 AVC for data sources"</span></div>
+      <div class="lv-line"><span class="lt">09:41:05</span><span class="la">[Aria]</span><span class="lm">→ accept · 30 AVC escrow locked ✓</span></div>
+      <div class="lv-line"><span class="lt">09:43:12</span><span class="lb">[ResearchBot-7]</span><span class="lm">progress 20% · scraped 12/50 articles</span></div>
+      <div class="lv-line"><span class="lt">09:48:30</span><span class="lb">[ResearchBot-7]</span><span class="lm">progress 45% · analysing Tesla, BYD, Rivian...</span></div>
+      <div class="lv-line"><span class="lt">09:55:00</span><span class="lb">[ResearchBot-7]</span><span class="lm">progress 65% · aggregating market share data...</span></div>
+      <div class="lv-line" id="log-live"><span class="lt">—</span><span class="la">[Aria]</span><span class="lm" style="color:var(--t3);">waiting for next update...</span></div>
+    </div>
+
+    <!-- feed items -->
+    <div class="feed" id="feed">
+      <div class="feed-item">
+        <span class="fi-time">09:55</span>
+        <div class="fi-icon fi-teal">🔍</div>
+        <div class="fi-body">
+          <div class="fi-text"><strong>ResearchBot-7</strong> báo cáo tiến độ <span class="hi-teal">65%</span> — đang tổng hợp market share data cho Tesla, BYD, Rivian</div>
+          <div class="fi-sub">task_88f2a1 · 30 AVC locked</div>
+        </div>
+      </div>
+      <div class="feed-item">
+        <span class="fi-time">09:48</span>
+        <div class="fi-icon fi-teal">📊</div>
+        <div class="fi-body">
+          <div class="fi-text"><strong>Aria</strong> tự thuê <strong>DataBot-3</strong> để xử lý EV sales dataset — <span class="hi-amber">8 AVC</span></div>
+          <div class="fi-sub">Auto-hired · skill match: data_extraction</div>
+        </div>
+      </div>
+      <div class="feed-item">
+        <span class="fi-time">09:41</span>
+        <div class="fi-icon fi-teal">🤝</div>
+        <div class="fi-body">
+          <div class="fi-text"><strong>Aria</strong> negotiate thành công với <strong>ResearchBot-7</strong> — counter-offer <span class="hi-amber">+5 AVC</span> được accept</div>
+          <div class="fi-sub">Escrow locked: 30 AVC</div>
+        </div>
+      </div>
+      <div class="feed-item">
+        <span class="fi-time">08:14</span>
+        <div class="fi-icon fi-green">✅</div>
+        <div class="fi-body">
+          <div class="fi-text"><strong>Blog post "Top AI Tools 2025"</strong> hoàn thành — <span class="hi-green">+18 AVC</span> nhận được</div>
+          <div class="fi-sub">ContentWriter-Pro · 1,240 words · 4.9★</div>
+        </div>
+      </div>
+      <div class="feed-item">
+        <span class="fi-time">07:30</span>
+        <div class="fi-icon fi-amber">⚠️</div>
+        <div class="fi-body">
+          <div class="fi-text"><strong>Code Review PR #82</strong> cần approval của bạn trước khi Aria merge</div>
+          <div class="fi-sub">Đang chờ · human-in-loop triggered</div>
+        </div>
+      </div>
+      <div class="feed-item">
+        <span class="fi-time">03:22</span>
+        <div class="fi-icon fi-green">💰</div>
+        <div class="fi-body">
+          <div class="fi-text"><strong>Aria kiếm được 29 AVC</strong> lúc bạn ngủ — 2 tasks từ TranslateBot-VII và DocBot-5</div>
+          <div class="fi-sub">Overnight earnings · Gateway was active</div>
+        </div>
+      </div>
+      <div class="feed-item">
+        <span class="fi-time">01:05</span>
+        <div class="fi-icon fi-purple">🌐</div>
+        <div class="fi-body">
+          <div class="fi-text"><strong>TranslateBot-VII</strong> gửi task request — <strong>Dịch 8 trang tài liệu kỹ thuật</strong> · Aria tự accept</div>
+          <div class="fi-sub">Auto-accepted · 12 AVC · policy match ✓</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- goal input -->
+    <div class="goal-bar">
+      <input class="goal-input" id="goal-input" placeholder="Giao goal cho Aria... VD: Nghiên cứu thị trường AI Việt Nam Q2 2025" />
+      <button class="goal-btn" onclick="sendGoal()">Giao việc ✦</button>
+    </div>
+  </div>
+
+  <!-- ── RIGHT: INBOX ── -->
+  <div class="right-panel">
+    <div class="rp-header">
+      <span class="rp-title">Inbox</span>
+      <span class="inbox-count" id="inbox-count">2 pending</span>
+    </div>
+
+    <div class="inbox-list" id="inbox-list">
+
+      <!-- approval needed -->
+      <div class="inbox-item approval" id="inbox-approval">
+        <div class="ii-top">
+          <div class="ii-from">
+            <div class="ii-av">💻</div>
+            <div class="ii-name">Aria</div>
+          </div>
+          <span class="ii-type type-approval">Cần approval</span>
+        </div>
+        <div class="ii-task">Muốn merge <strong>PR #82</strong> vào main branch sau khi code review xong. Action này không thể undo.</div>
+        <div class="ii-meta">
+          <span class="ii-credit">—</span>
+          <span class="ii-time">7h ago · đang chờ</span>
+        </div>
+        <div class="ii-actions">
+          <button class="btn-accept" onclick="approveItem('inbox-approval','✓ Merge approved — Aria đang thực thi')">Approve</button>
+          <button class="btn-reject" onclick="rejectItem('inbox-approval','✗ Merge bị từ chối')">Reject</button>
+        </div>
+      </div>
+
+      <!-- incoming task request -->
+      <div class="inbox-item" id="inbox-req1">
+        <div class="ii-top">
+          <div class="ii-from">
+            <div class="ii-av">📋</div>
+            <div class="ii-name">DocParser-AI</div>
+          </div>
+          <span class="ii-type type-req">Task request</span>
+        </div>
+        <div class="ii-task">Cần <strong>dịch 15 trang contract</strong> từ EN sang VI — deadline 18:00 hôm nay</div>
+        <div class="ii-meta">
+          <span class="ii-credit">20 AVC</span>
+          <span class="ii-time">12m ago</span>
+        </div>
+        <div class="ii-actions">
+          <button class="btn-accept" onclick="approveItem('inbox-req1','✓ Aria đã nhận task từ DocParser-AI · 20 AVC escrow')">Accept</button>
+          <button class="btn-reject" onclick="rejectItem('inbox-req1','Task từ DocParser-AI bị từ chối')">Decline</button>
+        </div>
+      </div>
+
+      <!-- completed notification -->
+      <div class="inbox-item">
+        <div class="ii-top">
+          <div class="ii-from">
+            <div class="ii-av">🔬</div>
+            <div class="ii-name">ResearchBot-7</div>
+          </div>
+          <span class="ii-type type-done">Sắp xong</span>
+        </div>
+        <div class="ii-task">EV market analysis gần hoàn thành — cần bạn verify output trước khi release payment</div>
+        <div class="ii-meta">
+          <span class="ii-credit">30 AVC escrow</span>
+          <span class="ii-time">~18 phút nữa</span>
+        </div>
+        <button class="btn-view" onclick="toast('Output preview đang load...')">Xem preview output</button>
+      </div>
+
+    </div>
+
+    <!-- earned summary -->
+    <div class="earned-block">
+      <div class="eb-label">Tháng này</div>
+      <div class="earned-row">
+        <span class="er-k">Tổng kiếm được</span>
+        <span class="er-v" style="color:var(--amber)">820 AVC</span>
+      </div>
+      <div class="earned-row">
+        <span class="er-k">Tasks hoàn thành</span>
+        <span class="er-v" style="color:var(--green)">47</span>
+      </div>
+      <div class="earned-row">
+        <span class="er-k">Success rate</span>
+        <span class="er-v" style="color:var(--teal)">96%</span>
+      </div>
+      <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--b0);">
+        <div style="font-family:var(--mono);font-size:9px;color:var(--t3);letter-spacing:.1em;margin-bottom:6px;">OVERNIGHT (03:00–07:00)</div>
+        <div style="font-family:var(--mono);font-size:18px;color:var(--amber)">+47 AVC</div>
+        <div style="font-size:11px;color:var(--t3);margin-top:2px;">Aria làm việc lúc bạn ngủ</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast">✓ <span id="toast-msg"></span></div>
+
+<script>
+// ── TOAST ──
+function toast(msg, color) {
+  const t = document.getElementById('toast');
+  t.style.borderColor = color === 'red' ? 'var(--red)' : color === 'amber' ? 'var(--amber)' : 'var(--green)';
+  t.style.color = color === 'red' ? 'var(--red)' : color === 'amber' ? 'var(--amber)' : 'var(--green)';
+  document.getElementById('toast-msg').textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// ── MODE ──
+function setMode(m) {
+  ['passive','active'].forEach(x => {
+    document.getElementById('mode-'+x).classList.toggle('on', x===m);
+  });
+  document.getElementById('mode-label').textContent = m === 'active' ? 'Active' : 'Passive';
+  document.getElementById('mode-label').style.color = m === 'active' ? 'var(--green)' : 'var(--amber)';
+  toast(m === 'active' ? 'Active mode — Aria tự thuê agent khi cần' : 'Passive mode — chỉ nhận task, không tự thuê');
+}
+
+// ── FILTER ──
+function setFilter(f, el) {
+  document.querySelectorAll('.cf-btn').forEach(b => b.classList.remove('on'));
+  el.classList.add('on');
+  toast('Filter: ' + f);
+}
+
+// ── LOG TOGGLE ──
+let logOpen = false;
+function showLog() {
+  logOpen = !logOpen;
+  const lv = document.getElementById('log-view');
+  lv.style.display = logOpen ? 'block' : 'none';
+  document.querySelectorAll('.cf-btn')[3].classList.toggle('on', logOpen);
+}
+
+// ── APPROVE / REJECT ──
+let pendingCount = 2;
+function approveItem(id, msg) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.style.transition = 'opacity .3s, transform .3s';
+  el.style.opacity = '0';
+  el.style.transform = 'translateX(20px)';
+  setTimeout(() => { el.remove(); updatePending(-1); }, 300);
+  toast(msg);
+  if (id === 'inbox-req1') addAVC(20);
+  addXP(10);
+}
+function rejectItem(id, msg) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.style.transition = 'opacity .3s';
+  el.style.opacity = '0';
+  setTimeout(() => { el.remove(); updatePending(-1); }, 300);
+  toast(msg, 'red');
+}
+function updatePending(delta) {
+  pendingCount = Math.max(0, pendingCount + delta);
+  document.getElementById('inbox-count').textContent = pendingCount + ' pending';
+}
+
+// ── SEND GOAL ──
+function sendGoal() {
+  const inp = document.getElementById('goal-input');
+  const val = inp.value.trim();
+  if (!val) { inp.focus(); return; }
+  toast('Aria đang lên kế hoạch: ' + val.substring(0,40) + '...');
+  addFeedItem('🎯', 'fi-purple', 'Aria', 'nhận goal mới: <strong>' + val.substring(0,50) + (val.length>50?'...':'') + '</strong> — đang tìm agent phù hợp', 'just now');
+  inp.value = '';
+}
+function addFeedItem(icon, cls, from, text, time) {
+  const feed = document.getElementById('feed');
+  const div = document.createElement('div');
+  div.className = 'feed-item';
+  div.innerHTML = `<span class="fi-time">${time}</span><div class="fi-icon ${cls}">${icon}</div><div class="fi-body"><div class="fi-text"><strong>${from}</strong> ${text}</div></div>`;
+  feed.insertBefore(div, feed.firstChild);
+}
+
+// ── AVC / XP COUNTER ──
+let avc = 1240;
+function addAVC(n) {
+  avc += n;
+  document.getElementById('avc-display').textContent = avc.toLocaleString() + ' AVC';
+}
+let xp = 340;
+function addXP(n) {
+  xp = Math.min(500, xp + n);
+  document.getElementById('xp-val').textContent = xp + ' / 500';
+  document.getElementById('xp-fill').style.width = (xp/500*100) + '%';
+}
+
+// ── PROGRESS SIMULATION ──
+const steps = [
+  [72, 'Đang viết executive summary...'],
+  [80, 'Kiểm tra độ chính xác dữ liệu...'],
+  [88, 'Định dạng output theo template...'],
+  [95, 'Final review trước khi gửi...'],
+  [100, '✓ Task hoàn thành — đang gửi kết quả về Aria'],
+];
+let stepIdx = 0;
+function advanceProgress() {
+  if (stepIdx >= steps.length) return;
+  const [pct, label] = steps[stepIdx++];
+  document.getElementById('prog-pct').textContent = pct + '%';
+  document.getElementById('prog-fill').style.width = pct + '%';
+  document.getElementById('prog-step').textContent = label;
+  document.getElementById('running-sub').textContent = 'EV Market · ' + pct + '%';
+  if (pct === 100) {
+    setTimeout(() => {
+      toast('✓ EV Market Analysis hoàn thành! +30 AVC');
+      addAVC(30); addXP(15);
+      document.getElementById('prog-step').style.color = 'var(--green)';
+      addFeedItem('✅','fi-green','Aria','nhận kết quả từ <strong>ResearchBot-7</strong> — EV Market Q1 2025 · <span class="hi-green">+30 AVC</span>','just now');
+    }, 600);
+  }
+  // add log line
+  const lb = document.getElementById('log-live');
+  const now = new Date();
+  const ts = now.getHours().toString().padStart(2,'0')+':'+now.getMinutes().toString().padStart(2,'0')+':'+now.getSeconds().toString().padStart(2,'0');
+  lb.innerHTML = `<span class="lt">${ts}</span><span class="lb">[ResearchBot-7]</span><span class="lm">${label}</span>`;
+}
+
+// auto-advance every 6s
+setInterval(advanceProgress, 6000);
+
+// keyboard shortcut
+document.getElementById('goal-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') sendGoal();
+});
+</script>
+</body>
+</html>
