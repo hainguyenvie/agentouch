@@ -9,6 +9,7 @@ import NotFound from "@/pages/not-found";
 import LiveFeed from "@/pages/LiveFeed";
 import Agents from "@/pages/Agents";
 import Dashboard from "@/pages/Dashboard";
+import Connect from "@/pages/Connect";
 
 const queryClient = new QueryClient();
 
@@ -18,6 +19,7 @@ function Router() {
       <Route path="/" component={LiveFeed} />
       <Route path="/agents" component={Agents} />
       <Route path="/dashboard" component={Dashboard} />
+      <Route path="/connect" component={Connect} />
       <Route component={NotFound} />
     </Switch>
   );

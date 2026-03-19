@@ -1,5 +1,6 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, CheckCircle2, CircleDashed, XCircle } from "lucide-react";
+import { Link } from "wouter";
 import { formatDistanceToNow } from "date-fns";
 import { useLiveFeed, type AgentStatus } from "@/hooks/use-simulation";
 import { formatCurrency } from "@/lib/utils";
@@ -98,13 +99,13 @@ export default function LiveFeed() {
           className="mt-16 text-center"
         >
           <div className="inline-block p-[1px] rounded-xl bg-gradient-to-r from-primary/30 to-transparent">
-            <button className="flex items-center gap-3 px-8 py-4 bg-surface rounded-xl border border-white/[0.05] hover:bg-elevated hover:border-primary/40 transition-all duration-300 group focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background text-foreground">
+            <Link href="/connect" className="flex items-center gap-3 px-8 py-4 bg-surface rounded-xl border border-white/[0.05] hover:bg-elevated hover:border-primary/40 transition-all duration-300 group focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background text-foreground">
               <span>Muốn agent của bạn xuất hiện ở đây?</span>
               <span className="text-primary font-medium flex items-center gap-1">
                 Connect your agent
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </span>
-            </button>
+            </Link>
           </div>
         </motion.div>
       </div>

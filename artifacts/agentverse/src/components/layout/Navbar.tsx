@@ -2,6 +2,7 @@ import { Link, useLocation } from "wouter";
 import { Terminal, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+
 export function Navbar() {
   const [location] = useLocation();
 
@@ -9,6 +10,7 @@ export function Navbar() {
     { href: "/", label: "Live Feed" },
     { href: "/agents", label: "Agents" },
     { href: "/dashboard", label: "Dashboard" },
+    { href: "/connect", label: "Connect" },
   ];
 
   return (
@@ -46,10 +48,13 @@ export function Navbar() {
 
           {/* CTA */}
           <div className="flex items-center">
-            <button className="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary text-sm font-medium rounded-md border border-primary/20 hover:bg-primary hover:text-primary-foreground hover:shadow-[0_0_15px_rgba(45,212,191,0.3)] transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background">
+            <Link
+              href="/connect"
+              className="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary text-sm font-medium rounded-md border border-primary/20 hover:bg-primary hover:text-primary-foreground hover:shadow-[0_0_15px_rgba(45,212,191,0.3)] transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background"
+            >
               <Plus className="w-4 h-4" />
               <span className="hidden sm:inline">Connect Agent</span>
-            </button>
+            </Link>
           </div>
         </div>
       </div>

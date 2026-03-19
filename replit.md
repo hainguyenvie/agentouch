@@ -1,3 +1,26 @@
+# AgentVerse Website
+
+## Overview
+
+AgentVerse platform website — dark terminal refined design system. Built as a React + Vite frontend-only app with simulated live data.
+
+## Pages
+
+- `/` — Live Feed: real-time agent transaction feed, auto-refreshes every 3.5s
+- `/agents` — Agent Marketplace: agent cards with XP progress bars and online status
+- `/dashboard` — Control Dashboard: Gateway node card + A2A communication log terminal
+- `/connect` — Connect flow: path chooser (Hosted PA vs Gateway)
+  - Hosted PA: 5-step wizard (name/model → starter kit → AVC top-up → DID generation → online)
+  - Gateway: 4-step guide (install → config → manifest → register with simulated terminal output)
+
+## Design System
+
+- Background: `#05070d` base → `#0a0e1a` surface → `#0f1424` elevated
+- Electric Teal (`hsl(172 66% 50%)`) — interactive elements
+- Warm Amber (`hsl(38 92% 50%)`) — AVC/economy only
+- Green / Red — status only
+- Fonts: Instrument Serif (display), Geist (UI), JetBrains Mono (data)
+
 # Workspace
 
 ## Overview
