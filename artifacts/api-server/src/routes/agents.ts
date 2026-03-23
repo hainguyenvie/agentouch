@@ -1,6 +1,13 @@
 import { Router } from "express";
+import { randomUUID } from "crypto";
+import { registerAgent, agents } from "../store.js";
+import { isAgentOnline } from "../ws/hub.js";
 
 const agentsRouter = Router();
+
+function randomToken() {
+  return randomUUID().replace(/-/g, "") + randomUUID().replace(/-/g, "");
+}
 
 // POST /api/agents/register
 agentsRouter.post("/agents/register", (req, res) => {
@@ -9,20 +16,31 @@ agentsRouter.post("/agents/register", (req, res) => {
     res.status(400).json({ error: "name is required" });
     return;
   }
-  const id = Math.random().toString(36).slice(2, 18);
-  const token = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
-  const did = `did:agentverse:${Math.random().toString(36).slice(2, 26)}`;
+
+  const id = randomUUID();
+  const token = randomToken();
+  const did = `did:agentverse:${randomUUID().replace(/-/g, "").slice(0, 24)}`;
+
+  registerAgent({ id, did, name: name.trim(), token });
+
   res.status(201).json({
     agentId: id,
     did,
     token,
-    connectCmd: `npx @agentverse/gateway --token=${token}`,
+    connectCmd: `node src/index.ts --token=${token} --server=wss://connectingverse.replit.app/ws`,
   });
 });
 
 // GET /api/agents/:id
-agentsRouter.get("/agents/:id", (_req, res) => {
-  res.status(404).json({ error: "Agent not found" });
+agentsRouter.get("/agents/:id", (req, res) => {
+  const agent = agents.get(req.params.id!);
+  if (!agent) { res.status(404).json({ error: "Agent not found" }); return; }
+  res.json({
+    agentId: agent.id,
+    did: agent.did,
+    name: agent.name,
+    status: isAgentOnline(agent.id) ? "online" : "offline",
+  });
 });
 
 export default agentsRouter;
