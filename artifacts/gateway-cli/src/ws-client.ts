@@ -1,17 +1,21 @@
-import { WebSocket } from "ws";
+/**
+ * AgentVerse SSE client — uses HTTP/SSE instead of WebSocket
+ * so it works behind HTTP/2 proxies (Replit, Cloudflare, etc.)
+ */
+
+import https from "https";
+import http from "http";
 
 type MessageHandler = (msg: unknown) => void;
 
 export class AgentverseClient {
-  private ws: WebSocket | null = null;
   private reconnectDelay = 1000;
-  private heartbeatInterval: ReturnType<typeof setInterval> | null = null;
-  private messageQueue: string[] = [];
-  private handlers: MessageHandler[] = [];
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private closed = false;
+  private handlers: MessageHandler[] = [];
 
   constructor(
-    private readonly serverUrl: string,
+    private readonly serverUrl: string, // e.g. https://connectingverse.replit.app
     private readonly token: string,
   ) {}
 
@@ -19,59 +23,122 @@ export class AgentverseClient {
     this.handlers.push(handler);
   }
 
-  send(msg: unknown) {
-    const str = JSON.stringify(msg);
-    if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(str);
-    } else {
-      this.messageQueue.push(str);
-    }
+  private emit(msg: unknown) {
+    for (const h of this.handlers) h(msg);
+  }
+
+  // POST a message back to the server (relay events, heartbeats, task results)
+  send(payload: unknown) {
+    const body = JSON.stringify(payload);
+    const url = new URL(`/api/agents/relay-anon?token=${encodeURIComponent(this.token)}`, this.serverUrl);
+
+    // We don't have the agentId until after auth, so use a placeholder route.
+    // The server resolves the agent from the token.
+    const lib = url.protocol === "https:" ? https : http;
+    const req = lib.request(
+      { hostname: url.hostname, port: url.port || (url.protocol === "https:" ? 443 : 80), path: url.pathname + url.search, method: "POST", headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) } },
+      (res) => { res.resume(); }, // drain
+    );
+    req.on("error", () => {}); // ignore send errors
+    req.end(body);
+  }
+
+  // After we have agentId, use the proper relay endpoint
+  private agentId: string | null = null;
+
+  sendRelay(payload: unknown) {
+    if (!this.agentId) { this.send(payload); return; }
+    const body = JSON.stringify(payload);
+    const url = new URL(`/api/agents/${this.agentId}/relay?token=${encodeURIComponent(this.token)}`, this.serverUrl);
+    const lib = url.protocol === "https:" ? https : http;
+    const req = lib.request(
+      { hostname: url.hostname, port: url.port || (url.protocol === "https:" ? 443 : 80), path: url.pathname + url.search, method: "POST", headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) } },
+      (res) => { res.resume(); },
+    );
+    req.on("error", () => {});
+    req.end(body);
   }
 
   connect() {
-    const url = `${this.serverUrl}?type=agent&token=${encodeURIComponent(this.token)}`;
+    if (this.closed) return;
+    const url = new URL(`/api/agents/stream?token=${encodeURIComponent(this.token)}`, this.serverUrl);
+    // Find agentId from URL path if we have it
+    const sseUrl = this.agentId
+      ? new URL(`/api/agents/${this.agentId}/stream?token=${encodeURIComponent(this.token)}`, this.serverUrl)
+      : url;
+
     console.log(`[gateway] Connecting to ${this.serverUrl}...`);
-    this.ws = new WebSocket(url);
+    const lib = sseUrl.protocol === "https:" ? https : http;
 
-    this.ws.on("open", () => {
-      console.log("[gateway] Connected to AgentVerse server");
-      this.reconnectDelay = 1000;
-      // flush queued messages
-      for (const msg of this.messageQueue) this.ws!.send(msg);
-      this.messageQueue = [];
-      // start heartbeat
-      this.heartbeatInterval = setInterval(() => {
-        this.send({ type: "heartbeat" });
-      }, 30_000);
-    });
+    const req = lib.get(
+      { hostname: sseUrl.hostname, port: sseUrl.port || (sseUrl.protocol === "https:" ? 443 : 80), path: sseUrl.pathname + sseUrl.search, headers: { Accept: "text/event-stream", "Cache-Control": "no-cache" } },
+      (res) => {
+        if (res.statusCode !== 200) {
+          console.error(`[gateway] Server responded with ${res.statusCode}`);
+          res.resume();
+          this.scheduleReconnect();
+          return;
+        }
 
-    this.ws.on("message", (raw) => {
-      let msg: unknown;
-      try {
-        msg = JSON.parse(raw.toString());
-      } catch {
-        return;
-      }
-      for (const h of this.handlers) h(msg);
-    });
+        console.log("[gateway] SSE stream established");
+        this.reconnectDelay = 1000;
 
-    this.ws.on("close", () => {
-      if (this.heartbeatInterval) clearInterval(this.heartbeatInterval);
-      if (!this.closed) {
-        console.log(`[gateway] Disconnected. Reconnecting in ${this.reconnectDelay / 1000}s...`);
-        setTimeout(() => this.connect(), this.reconnectDelay);
-        this.reconnectDelay = Math.min(this.reconnectDelay * 2, 30_000);
-      }
-    });
+        // Start heartbeat
+        this.heartbeatTimer = setInterval(() => {
+          this.sendRelay({ type: "heartbeat" });
+        }, 30_000);
 
-    this.ws.on("error", (err) => {
-      console.error("[gateway] WebSocket error:", err.message);
+        let buf = "";
+        let eventName = "message";
+
+        res.on("data", (chunk: Buffer) => {
+          buf += chunk.toString();
+          const lines = buf.split("\n");
+          buf = lines.pop() ?? "";
+
+          for (const line of lines) {
+            if (line.startsWith("event: ")) {
+              eventName = line.slice(7).trim();
+            } else if (line.startsWith("data: ")) {
+              try {
+                const data = JSON.parse(line.slice(6)) as unknown;
+                // If auth_ok, store agentId
+                if (eventName === "auth_ok" && data && typeof data === "object" && "agentId" in data) {
+                  this.agentId = (data as { agentId: string }).agentId;
+                }
+                this.emit({ type: eventName, ...(typeof data === "object" && data !== null ? data : { data }) });
+              } catch { /* skip */ }
+              eventName = "message";
+            }
+          }
+        });
+
+        res.on("end", () => {
+          if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+          if (!this.closed) this.scheduleReconnect();
+        });
+
+        res.on("error", () => {
+          if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+          if (!this.closed) this.scheduleReconnect();
+        });
+      },
+    );
+
+    req.on("error", (err) => {
+      console.error("[gateway] Connection error:", err.message);
+      this.scheduleReconnect();
     });
+  }
+
+  private scheduleReconnect() {
+    console.log(`[gateway] Reconnecting in ${this.reconnectDelay / 1000}s...`);
+    setTimeout(() => this.connect(), this.reconnectDelay);
+    this.reconnectDelay = Math.min(this.reconnectDelay * 2, 30_000);
   }
 
   close() {
     this.closed = true;
-    if (this.heartbeatInterval) clearInterval(this.heartbeatInterval);
-    this.ws?.close();
+    if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
   }
 }

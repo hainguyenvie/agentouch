@@ -23,7 +23,7 @@ function useAgentWS(agentId: string | null): AgentWsState {
   const [liveEvents, setLiveEvents] = useState<FeedItem[]>([]);
   const [streamChunk, setStreamChunk] = useState("");
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
-  const wsRef = useRef<WebSocket | null>(null);
+
 
   useEffect(() => {
     if (!agentId) return;
@@ -37,72 +37,56 @@ function useAgentWS(agentId: string | null): AgentWsState {
       })
       .catch(() => {});
 
-    // WebSocket connection
-    const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const ws = new WebSocket(`${proto}//${window.location.host}/ws?type=dashboard&agentId=${agentId}`);
-    wsRef.current = ws;
+    // SSE — works with HTTP/2 proxies (Replit, Cloudflare, etc.)
+    const es = new EventSource(`/api/agents/${agentId}/events`);
 
-    ws.onmessage = (ev) => {
-      let msg: Record<string, unknown>;
-      try { msg = JSON.parse(ev.data as string) as Record<string, unknown>; } catch { return; }
-
-      const type = msg["type"] as string;
-
-      if (type === "agent_online" || type === "agent_status") {
-        setOnline(type === "agent_online" || (msg["online"] as boolean));
-      }
-      if (type === "agent_offline") setOnline(false);
-
-      if (type === "event") {
-        const eventType = msg["eventType"] as string;
-        const taskId = msg["taskId"] as string | undefined;
+    const handle = (evt: string, data: Record<string, unknown>) => {
+      if (evt === "agent_status") setOnline(data["online"] as boolean);
+      else if (evt === "agent_online") setOnline(true);
+      else if (evt === "agent_offline") setOnline(false);
+      else if (evt === "event") {
+        const evType = data["eventType"] as string;
+        const taskId = data["taskId"] as string | undefined;
         const now = new Date();
         const time = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-        const newEvent: FeedItem = {
-          id: `live-${Date.now()}`,
-          time,
-          icon: eventType === "task_started" ? "⚡" : eventType === "task_error" ? "❌" : "📡",
-          colorClass: "bg-primary/10",
-          from: agentName,
-          text: `<span class="font-mono text-[11px] text-white/40">[${eventType}]</span> ${taskId ?? ""}`,
-        };
         if (taskId) setActiveTaskId(taskId);
-        setLiveEvents((prev) => [newEvent, ...prev]);
-      }
-
-      if (type === "stream_chunk") {
-        const delta = msg["delta"] as string;
-        const done = msg["done"] as boolean;
-        if (done) {
-          setStreamChunk("");
-        } else if (delta) {
-          setStreamChunk((prev) => prev + delta);
-        }
-      }
-
-      if (type === "task_result") {
-        const taskId = msg["taskId"] as string;
-        const status = msg["status"] as string;
-        const content = msg["content"] as string;
+        setLiveEvents((prev) => [{
+          id: `live-${Date.now()}`, time,
+          icon: evType === "task_started" ? "⚡" : evType === "task_error" ? "❌" : "📡",
+          colorClass: "bg-primary/10", from: agentName,
+          text: `<span class="font-mono text-[11px] text-white/40">[${evType}]</span> ${taskId ?? ""}`,
+        }, ...prev]);
+      } else if (evt === "stream_chunk") {
+        const delta = data["delta"] as string;
+        if (data["done"]) setStreamChunk("");
+        else if (delta) setStreamChunk((prev) => prev + delta);
+      } else if (evt === "task_result") {
+        const taskId = data["taskId"] as string;
+        const status = data["status"] as string;
+        const content = data["content"] as string;
         const now = new Date();
         const time = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-        const resultEvent: FeedItem = {
-          id: `result-${taskId}`,
-          time,
+        setLiveEvents((prev) => [{
+          id: `result-${taskId}`, time,
           icon: status === "done" ? "✅" : "❌",
           colorClass: status === "done" ? "bg-success/10" : "bg-danger/10",
           from: agentName,
           text: status === "done"
             ? `task hoàn thành — <span class="font-mono text-[11px] text-white/50">${content.slice(0, 80)}${content.length > 80 ? "…" : ""}</span>`
             : `task thất bại: ${content.slice(0, 60)}`,
-        };
-        setLiveEvents((prev) => [resultEvent, ...prev]);
+        }, ...prev]);
         setActiveTaskId(null);
         setStreamChunk("");
       }
     };
 
-    return () => ws.close();
+    for (const evt of ["agent_status","agent_online","agent_offline","event","stream_chunk","task_result"]) {
+      es.addEventListener(evt, (e: Event) => {
+        try { handle(evt, JSON.parse((e as MessageEvent).data as string) as Record<string, unknown>); } catch { /* skip */ }
+      });
+    }
+
+    return () => es.close();
   }, [agentId]);
 
   const sendTask = useCallback((content: string) => {

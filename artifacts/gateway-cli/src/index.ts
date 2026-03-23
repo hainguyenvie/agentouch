@@ -48,18 +48,18 @@ const client = new AgentverseClient(serverUrl, token);
 const bridge = new OpenClawBridge(openclawUrl, model, {
   onTaskStarted(taskId) {
     console.log(`[task:${taskId}] Started`);
-    client.send({ type: "event", eventType: "task_started", taskId, data: {} });
+    client.sendRelay({ type: "event", eventType: "task_started", taskId, data: {} });
   },
   onStreamChunk(taskId, delta, done) {
     if (delta) process.stdout.write(delta);
-    client.send({ type: "stream_chunk", taskId, delta, done });
+    client.sendRelay({ type: "stream_chunk", taskId, delta, done });
   },
   onTaskResult(taskId, status, content) {
     console.log(`\n[task:${taskId}] ${status.toUpperCase()} (${content.length} chars)`);
-    client.send({ type: "task_result", taskId, status, content });
+    client.sendRelay({ type: "task_result", taskId, status, content });
   },
   onEvent(taskId, eventType, data) {
-    client.send({ type: "event", eventType, taskId, data });
+    client.sendRelay({ type: "event", eventType, taskId, data });
   },
 });
 
