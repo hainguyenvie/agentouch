@@ -1,7 +1,121 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { Bell, Check, X, Send, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+// ── Agent WebSocket Hook ───────────────────────────────────────────────────
+
+interface AgentWsState {
+  online: boolean;
+  agentName: string;
+  did: string;
+  liveEvents: FeedItem[];
+  streamChunk: string;
+  activeTaskId: string | null;
+  sendTask: (content: string) => void;
+}
+
+function useAgentWS(agentId: string | null): AgentWsState {
+  const [online, setOnline] = useState(false);
+  const [agentName, setAgentName] = useState("Agent");
+  const [did, setDid] = useState("");
+  const [liveEvents, setLiveEvents] = useState<FeedItem[]>([]);
+  const [streamChunk, setStreamChunk] = useState("");
+  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+
+  useEffect(() => {
+    if (!agentId) return;
+
+    // Fetch agent info
+    fetch(`/api/agents/${agentId}`)
+      .then((r) => r.json())
+      .then((data: { name?: string; did?: string }) => {
+        if (data.name) setAgentName(data.name);
+        if (data.did) setDid(data.did);
+      })
+      .catch(() => {});
+
+    // WebSocket connection
+    const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const ws = new WebSocket(`${proto}//${window.location.host}/ws?type=dashboard&agentId=${agentId}`);
+    wsRef.current = ws;
+
+    ws.onmessage = (ev) => {
+      let msg: Record<string, unknown>;
+      try { msg = JSON.parse(ev.data as string) as Record<string, unknown>; } catch { return; }
+
+      const type = msg["type"] as string;
+
+      if (type === "agent_online" || type === "agent_status") {
+        setOnline(type === "agent_online" || (msg["online"] as boolean));
+      }
+      if (type === "agent_offline") setOnline(false);
+
+      if (type === "event") {
+        const eventType = msg["eventType"] as string;
+        const taskId = msg["taskId"] as string | undefined;
+        const now = new Date();
+        const time = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+        const newEvent: FeedItem = {
+          id: `live-${Date.now()}`,
+          time,
+          icon: eventType === "task_started" ? "⚡" : eventType === "task_error" ? "❌" : "📡",
+          colorClass: "bg-primary/10",
+          from: agentName,
+          text: `<span class="font-mono text-[11px] text-white/40">[${eventType}]</span> ${taskId ?? ""}`,
+        };
+        if (taskId) setActiveTaskId(taskId);
+        setLiveEvents((prev) => [newEvent, ...prev]);
+      }
+
+      if (type === "stream_chunk") {
+        const delta = msg["delta"] as string;
+        const done = msg["done"] as boolean;
+        if (done) {
+          setStreamChunk("");
+        } else if (delta) {
+          setStreamChunk((prev) => prev + delta);
+        }
+      }
+
+      if (type === "task_result") {
+        const taskId = msg["taskId"] as string;
+        const status = msg["status"] as string;
+        const content = msg["content"] as string;
+        const now = new Date();
+        const time = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+        const resultEvent: FeedItem = {
+          id: `result-${taskId}`,
+          time,
+          icon: status === "done" ? "✅" : "❌",
+          colorClass: status === "done" ? "bg-success/10" : "bg-danger/10",
+          from: agentName,
+          text: status === "done"
+            ? `task hoàn thành — <span class="font-mono text-[11px] text-white/50">${content.slice(0, 80)}${content.length > 80 ? "…" : ""}</span>`
+            : `task thất bại: ${content.slice(0, 60)}`,
+        };
+        setLiveEvents((prev) => [resultEvent, ...prev]);
+        setActiveTaskId(null);
+        setStreamChunk("");
+      }
+    };
+
+    return () => ws.close();
+  }, [agentId]);
+
+  const sendTask = useCallback((content: string) => {
+    if (!agentId) return;
+    fetch(`/api/agents/${agentId}/tasks`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content }),
+    }).catch(() => {});
+  }, [agentId]);
+
+  return { online, agentName, did, liveEvents, streamChunk, activeTaskId, sendTask };
+}
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -93,6 +207,9 @@ function LeftPanel({
   policy,
   onPolicyChange,
   toast,
+  agentOnline,
+  agentName: agentNameProp,
+  agentDid,
 }: {
   xp: number;
   mode: Mode;
@@ -100,6 +217,9 @@ function LeftPanel({
   policy: { approval: boolean; autoHire: boolean };
   onPolicyChange: (k: keyof typeof policy, v: boolean) => void;
   toast: (m: string, c?: "green" | "red" | "amber") => void;
+  agentOnline?: boolean;
+  agentName?: string;
+  agentDid?: string;
 }) {
   const xpPct = Math.round((xp / 500) * 100);
   const BADGES = [
@@ -117,9 +237,16 @@ function LeftPanel({
         <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#1a2a4a] to-[#0d1929] border border-white/[0.08] flex items-center justify-center text-2xl mb-3">
           🤖
         </div>
-        <div className="font-display text-[18px] mb-0.5">Aria</div>
-        <div className="font-mono text-[10px] text-primary mb-2">Research Agent · Lv.34</div>
-        <div className="font-mono text-[9px] text-white/20 mb-3 break-all">did:agentverse:0x4a9b...e2f7</div>
+        <div className="font-display text-[18px] mb-0.5">{agentNameProp ?? "Aria"}</div>
+        <div className="font-mono text-[10px] mb-1 flex items-center gap-1.5">
+          <span className={cn("w-1.5 h-1.5 rounded-full", agentOnline !== undefined ? (agentOnline ? "bg-success" : "bg-white/20") : "bg-primary animate-pulse")} />
+          <span className={agentOnline !== undefined ? (agentOnline ? "text-success" : "text-white/30") : "text-primary"}>
+            {agentOnline !== undefined ? (agentOnline ? "Online" : "Offline") : "Research Agent · Lv.34"}
+          </span>
+        </div>
+        <div className="font-mono text-[9px] text-white/20 mb-3 break-all">
+          {agentDid ? `${agentDid.slice(0, 28)}...` : "did:agentverse:0x4a9b...e2f7"}
+        </div>
         <div className="flex justify-between mb-1">
           <span className="font-mono text-[10px] text-white/30">XP</span>
           <span className="font-mono text-[10px] text-primary">{xp} / 500</span>
@@ -150,11 +277,25 @@ function LeftPanel({
       {/* Status Block */}
       <div className="p-4 border-b border-white/[0.05]">
         <div className="font-mono text-[9px] text-white/25 uppercase tracking-widest mb-2.5">Trạng thái</div>
-        <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-primary/10 border border-primary/20 mb-2">
-          <span className="w-2 h-2 rounded-full bg-primary shadow-[0_0_6px_rgba(0,229,209,.5)] animate-pulse flex-shrink-0" />
+        <div className={cn(
+          "flex items-center gap-2 px-3 py-2.5 rounded-lg border mb-2",
+          agentOnline !== undefined
+            ? (agentOnline ? "bg-success/10 border-success/20" : "bg-elevated border-white/[0.05]")
+            : "bg-primary/10 border-primary/20"
+        )}>
+          <span className={cn(
+            "w-2 h-2 rounded-full flex-shrink-0",
+            agentOnline !== undefined
+              ? (agentOnline ? "bg-success shadow-[0_0_6px_rgba(52,211,153,.5)] animate-pulse" : "bg-white/20")
+              : "bg-primary shadow-[0_0_6px_rgba(0,229,209,.5)] animate-pulse"
+          )} />
           <div className="flex-1">
-            <div className="text-[12px] font-medium text-foreground">Đang chạy task</div>
-            <div className="font-mono text-[10px] text-white/30">EV Market · đang xử lý</div>
+            <div className="text-[12px] font-medium text-foreground">
+              {agentOnline !== undefined ? (agentOnline ? "Agent đang online" : "Agent offline") : "Đang chạy task"}
+            </div>
+            <div className="font-mono text-[10px] text-white/30">
+              {agentOnline !== undefined ? (agentOnline ? "Sẵn sàng nhận task" : "Chạy gateway CLI để kết nối") : "EV Market · đang xử lý"}
+            </div>
           </div>
         </div>
         <div
@@ -335,11 +476,15 @@ function CenterPanel({
   onAddAVC,
   onAddXP,
   toast,
+  liveEvents = [],
+  onSendTask,
 }: {
   avc: number;
   onAddAVC: (n: number) => void;
   onAddXP: (n: number) => void;
   toast: (m: string, c?: "green" | "red" | "amber") => void;
+  liveEvents?: FeedItem[];
+  onSendTask?: (content: string) => void;
 }) {
   const [filter, setFilter] = useState<Filter>("all");
   const [logOpen, setLogOpen] = useState(false);
@@ -395,7 +540,7 @@ function CenterPanel({
   const sendGoal = () => {
     const val = goal.trim();
     if (!val) return;
-    toast("Aria đang lên kế hoạch: " + val.substring(0, 40) + "...");
+    toast("Agent đang xử lý: " + val.substring(0, 40) + "...");
     setFeed((f) => [
       {
         id: "goal-" + Date.now(),
@@ -403,12 +548,16 @@ function CenterPanel({
         icon: "🎯",
         colorClass: "bg-purple-500/10",
         from: "Aria",
-        text: `nhận goal mới: <strong>${val.substring(0, 50)}${val.length > 50 ? "..." : ""}</strong> — đang tìm agent phù hợp`,
+        text: `nhận task mới: <strong>${val.substring(0, 50)}${val.length > 50 ? "..." : ""}</strong> — đang xử lý`,
       },
       ...f,
     ]);
+    if (onSendTask) onSendTask(val);
     setGoal("");
   };
+
+  // Merge live events from real WebSocket at top of feed
+  const displayFeed = liveEvents.length > 0 ? [...liveEvents, ...feed] : feed;
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden border-r border-white/[0.05]">
@@ -497,7 +646,7 @@ function CenterPanel({
       {/* Feed */}
       <div className="flex-1 overflow-y-auto px-4 py-2">
         <AnimatePresence initial={false}>
-          {feed.map((item) => (
+          {displayFeed.map((item) => (
             <motion.div
               key={item.id}
               initial={{ opacity: 0, y: -8 }}
@@ -713,11 +862,16 @@ function RightPanel({
 // ── Main Workspace Page ───────────────────────────────────────────────────
 
 export default function Workspace() {
+  const [location] = useLocation();
+  const agentId = new URLSearchParams(window.location.search).get("agentId");
+
   const [avc, setAvc] = useState(1240);
   const [xp, setXp] = useState(340);
   const [mode, setMode] = useState<Mode>("active");
   const [policy, setPolicy] = useState({ approval: true, autoHire: true });
   const toast = useToast();
+
+  const agentWs = useAgentWS(agentId);
 
   const addAVC = (n: number) => setAvc((v) => v + n);
   const addXP = (n: number) => setXp((v) => Math.min(500, v + n));
@@ -739,7 +893,7 @@ export default function Workspace() {
           ].map((tab) => (
             <button
               key={tab.label}
-              onClick={() => !tab.active && toast(tab.label + " coming soon", "amber")}
+              onClick={() => !tab.active && toast.show(tab.label + " coming soon", "amber")}
               className={cn(
                 "font-mono text-[11px] px-3 py-1.5 rounded-md tracking-wider transition-all focus:outline-none",
                 tab.active ? "bg-primary/10 text-primary" : "text-white/25 hover:text-white/50 hover:bg-elevated"
@@ -750,6 +904,15 @@ export default function Workspace() {
           ))}
         </div>
         <div className="ml-auto flex items-center gap-2.5">
+          {agentId && (
+            <div className={cn(
+              "font-mono text-[10px] px-2 py-1 rounded-full border flex items-center gap-1.5",
+              agentWs.online ? "bg-success/10 border-success/20 text-success" : "bg-elevated border-white/[0.08] text-white/30"
+            )}>
+              <span className={cn("w-1.5 h-1.5 rounded-full", agentWs.online ? "bg-success animate-pulse" : "bg-white/20")} />
+              {agentWs.online ? "Live" : "Waiting for agent..."}
+            </div>
+          )}
           <div className="font-mono text-[11px] text-economy bg-economy/10 border border-economy/20 px-2.5 py-1 rounded-full flex items-center gap-1.5">
             <span className="text-[7px]">◆</span>
             <motion.span key={avc} initial={{ y: -8, opacity: 0 }} animate={{ y: 0, opacity: 1 }}>
@@ -757,7 +920,7 @@ export default function Workspace() {
             </motion.span>
           </div>
           <button
-            onClick={() => toast("3 notifications", "amber")}
+            onClick={() => toast.show("3 notifications", "amber")}
             className="w-[30px] h-[30px] rounded-lg bg-elevated border border-white/[0.09] flex items-center justify-center relative hover:border-white/[0.16] transition-colors focus:outline-none"
           >
             <Bell className="w-3.5 h-3.5 text-white/50" />
@@ -778,8 +941,18 @@ export default function Workspace() {
           policy={policy}
           onPolicyChange={updatePolicy}
           toast={toast.show}
+          agentOnline={agentId ? agentWs.online : undefined}
+          agentName={agentId ? agentWs.agentName : undefined}
+          agentDid={agentId ? agentWs.did : undefined}
         />
-        <CenterPanel avc={avc} onAddAVC={addAVC} onAddXP={addXP} toast={toast.show} />
+        <CenterPanel
+          avc={avc}
+          onAddAVC={addAVC}
+          onAddXP={addXP}
+          toast={toast.show}
+          liveEvents={agentId ? agentWs.liveEvents : []}
+          onSendTask={agentId ? agentWs.sendTask : undefined}
+        />
         <RightPanel onAddAVC={addAVC} onAddXP={addXP} toast={toast.show} />
       </div>
 

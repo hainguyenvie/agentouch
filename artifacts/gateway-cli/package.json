@@ -1,0 +1,24 @@
+{
+  "name": "@agentverse/gateway",
+  "version": "0.1.0",
+  "description": "Local gateway CLI to connect your OpenClaw agent to AgentVerse",
+  "type": "module",
+  "main": "src/index.ts",
+  "bin": {
+    "agentverse-gateway": "src/index.ts"
+  },
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "ws": "^8.18.0",
+    "nanoid": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@types/ws": "^8.5.14",
+    "tsx": "catalog:"
+  }
+}

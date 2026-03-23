@@ -53,6 +53,12 @@ export default defineConfig({
       strict: true,
       deny: ["**/.*"],
     },
+    proxy: isReplit
+      ? undefined
+      : {
+          "/api": "http://localhost:3000",
+          "/ws": { target: "ws://localhost:3000", ws: true },
+        },
   },
   preview: {
     port,

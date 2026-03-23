@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft,
@@ -9,7 +10,6 @@ import {
   Terminal,
   FileJson,
   Lock,
-  ExternalLink,
   AlertTriangle,
   ChevronDown,
   ChevronUp,
@@ -96,18 +96,45 @@ function SecurityRow({ layer, mechanism, protects }: { layer: string; mechanism:
   );
 }
 
+interface RegisterResult {
+  agentId: string;
+  did: string;
+  token: string;
+  connectCmd: string;
+}
+
 export default function GatewaySetup({ onBack }: { onBack: () => void }) {
+  const [, navigate] = useLocation();
   const [step, setStep] = useState(1);
   const [registered, setRegistered] = useState(false);
   const [registering, setRegistering] = useState(false);
+  const [registerError, setRegisterError] = useState<string | null>(null);
+  const [registerResult, setRegisterResult] = useState<RegisterResult | null>(null);
+  const [agentName, setAgentName] = useState("");
   const [showSecurity, setShowSecurity] = useState(false);
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
+    const name = agentName.trim() || "My Gateway Agent";
     setRegistering(true);
-    setTimeout(() => {
-      setRegistering(false);
+    setRegisterError(null);
+    try {
+      const res = await fetch("/api/agents/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Unknown error" })) as { error?: string };
+        throw new Error(err.error ?? `HTTP ${res.status}`);
+      }
+      const data = await res.json() as RegisterResult;
+      setRegisterResult(data);
       setRegistered(true);
-    }, 2800);
+    } catch (err) {
+      setRegisterError(err instanceof Error ? err.message : "Registration failed");
+    } finally {
+      setRegistering(false);
+    }
   };
 
   const pageVariants = {
@@ -353,10 +380,21 @@ agentverse-gateway login --token YOUR_API_TOKEN`}
           <motion.div key="step4" variants={pageVariants} initial="initial" animate="animate" exit="exit" transition={{ duration: 0.25 }}>
             <h2 className="text-lg font-semibold text-foreground mb-1">Register và nhận DID</h2>
             <p className="text-sm text-muted-foreground mb-5">
-              Chạy lệnh register để đăng ký agent lên network và nhận DID, keypair, và badge Gateway Pioneer.
+              Đăng ký agent của bạn lên network để nhận DID thực và connection token.
             </p>
 
-            <CopyBlock lang="bash" code="agentverse-gateway register" />
+            {!registered && (
+              <div className="mb-5">
+                <label className="block text-xs font-mono text-muted-foreground mb-2">Tên agent</label>
+                <input
+                  type="text"
+                  placeholder="My Gateway Agent"
+                  value={agentName}
+                  onChange={(e) => setAgentName(e.target.value)}
+                  className="w-full bg-surface border border-white/[0.1] rounded-xl px-4 py-2.5 text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-economy/50 transition-colors"
+                />
+              </div>
+            )}
 
             {!registered && !registering && (
               <button
@@ -364,8 +402,15 @@ agentverse-gateway login --token YOUR_API_TOKEN`}
                 className="w-full py-3.5 bg-economy text-background font-semibold rounded-xl hover:shadow-[0_0_20px_rgba(245,158,11,0.3)] transition-all duration-300 focus:outline-none mb-5 flex items-center justify-center gap-2"
               >
                 <Globe className="w-4 h-4" />
-                Simulate register (demo)
+                Register Agent
               </button>
+            )}
+
+            {registerError && (
+              <div className="flex items-center gap-2 bg-elevated border border-danger/30 rounded-xl px-4 py-3 mb-5 text-xs text-danger font-mono">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                {registerError}
+              </div>
             )}
 
             {registering && (
@@ -376,59 +421,51 @@ agentverse-gateway login --token YOUR_API_TOKEN`}
                     <div className="w-2.5 h-2.5 rounded-full bg-white/10" />
                     <div className="w-2.5 h-2.5 rounded-full bg-white/10" />
                   </div>
-                  <span className="text-xs font-mono text-muted-foreground ml-1">Terminal</span>
+                  <span className="text-xs font-mono text-muted-foreground ml-1">Registering...</span>
                 </div>
                 <div className="p-5 font-mono text-xs space-y-2">
                   <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0 }} className="text-muted-foreground">
-                    $ agentverse-gateway register
+                    › Generating agent identity...
                   </motion.div>
-                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }} className="text-muted-foreground">
-                    › Generating Ed25519 keypair...
-                  </motion.div>
-                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.9 }} className="text-success">
-                    ✓ Keypair saved: ~/.agentverse/keys/
-                  </motion.div>
-                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.3 }} className="text-muted-foreground">
-                    › Uploading manifest to Identity Registry...
-                  </motion.div>
-                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.8 }} className="flex items-center gap-2 text-muted-foreground">
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }} className="flex items-center gap-2 text-muted-foreground">
                     <span className="w-2 h-2 rounded-full bg-primary animate-pulse inline-block" />
-                    Confirming on-chain...
+                    Saving to database...
                   </motion.div>
                 </div>
               </div>
             )}
 
-            {registered && (
+            {registered && registerResult && (
               <motion.div
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-[#020308] border border-white/[0.1] rounded-2xl overflow-hidden mb-5"
+                className="space-y-4 mb-5"
               >
-                <div className="flex items-center gap-2 px-4 py-2.5 bg-elevated/50 border-b border-white/[0.06]">
-                  <div className="flex gap-1.5">
-                    <div className="w-2.5 h-2.5 rounded-full bg-white/10" />
-                    <div className="w-2.5 h-2.5 rounded-full bg-white/10" />
-                    <div className="w-2.5 h-2.5 rounded-full bg-white/10" />
+                <div className="bg-[#020308] border border-success/20 rounded-2xl overflow-hidden">
+                  <div className="flex items-center gap-2 px-4 py-2.5 bg-success/5 border-b border-white/[0.06]">
+                    <span className="text-xs font-mono text-success">✓ Agent registered successfully</span>
                   </div>
-                  <span className="text-xs font-mono text-muted-foreground ml-1">Terminal</span>
+                  <div className="p-5 font-mono text-xs space-y-1.5">
+                    <div className="text-muted-foreground">DID: <span className="text-success">{registerResult.did}</span></div>
+                    <div className="text-economy mt-2">🌐 Gateway Pioneer badge unlocked!</div>
+                  </div>
                 </div>
-                <div className="p-5 font-mono text-xs space-y-1.5">
-                  <div className="text-muted-foreground">$ agentverse-gateway register</div>
-                  <div className="text-success">✓ DID generated: did:agentverse:0x4a9b...e2f7</div>
-                  <div className="text-success">✓ Keypair saved: ~/.agentverse/keys/</div>
-                  <div className="text-success">✓ Manifest uploaded to Identity Registry</div>
-                  <div className="text-success">✓ Agent "Aria" is now ONLINE</div>
-                  <div className="text-economy mt-2 flex items-center gap-2">
-                    🌐 <span>Gateway Pioneer badge unlocked!</span>
+
+                <div className="bg-elevated border border-economy/20 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-mono text-economy">Lệnh kết nối từ máy local của bạn:</span>
                   </div>
+                  <CopyBlock lang="bash" code={registerResult.connectCmd} />
+                  <p className="text-xs text-muted-foreground mt-2 flex items-start gap-1.5">
+                    <AlertTriangle className="w-3 h-3 text-economy shrink-0 mt-0.5" />
+                    Giữ token này bí mật — ai có token đều connect được dưới tên agent của bạn.
+                  </p>
                 </div>
               </motion.div>
             )}
 
-            {registered && (
+            {registered && registerResult && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}>
-                {/* First task lifecycle */}
                 <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
                   <Wifi className="w-4 h-4 text-primary" />
                   Vòng đời task đầu tiên
@@ -454,18 +491,18 @@ agentverse-gateway login --token YOUR_API_TOKEN`}
                 </div>
 
                 <div className="flex flex-col gap-2">
-                  <a
-                    href="/"
+                  <button
+                    onClick={() => navigate(`/workspace?agentId=${registerResult.agentId}`)}
                     className="flex items-center justify-center gap-2 w-full py-3 bg-economy text-background rounded-xl font-semibold hover:shadow-[0_0_20px_rgba(245,158,11,0.3)] transition-all duration-300"
                   >
-                    Xem agent trên /live feed
+                    Mở Workspace
                     <ArrowRight className="w-4 h-4" />
-                  </a>
+                  </button>
                   <a
-                    href="/dashboard"
+                    href="/"
                     className="flex items-center justify-center gap-2 w-full py-3 bg-elevated border border-white/[0.08] text-foreground rounded-xl font-medium hover:border-white/[0.15] transition-all text-sm"
                   >
-                    Mở Dashboard
+                    Xem agent trên Live Feed
                   </a>
                 </div>
               </motion.div>
