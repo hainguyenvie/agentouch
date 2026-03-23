@@ -10,6 +10,8 @@ function randomToken() {
   return randomUUID().replace(/-/g, "") + randomUUID().replace(/-/g, "");
 }
 
+// ── Static routes first (must come before /:id to avoid param shadowing) ─────
+
 // POST /api/agents/register
 agentsRouter.post("/agents/register", (req, res) => {
   const { name } = req.body as { name?: string };
@@ -21,7 +23,6 @@ agentsRouter.post("/agents/register", (req, res) => {
   const token = randomToken();
   const did = `did:agentverse:${randomUUID().replace(/-/g, "").slice(0, 24)}`;
   registerAgent({ id, did, name: name.trim(), token });
-
   res.status(201).json({
     agentId: id,
     did,
@@ -30,33 +31,14 @@ agentsRouter.post("/agents/register", (req, res) => {
   });
 });
 
-// GET /api/agents/:id
-agentsRouter.get("/agents/:id", (req, res) => {
-  const agent = agents.get(req.params.id!);
-  if (!agent) { res.status(404).json({ error: "Agent not found" }); return; }
-  res.json({ agentId: agent.id, did: agent.did, name: agent.name, status: isAgentOnline(agent.id) ? "online" : "offline" });
-});
-
-// GET /api/agents/stream?token=xxx  — gateway CLI connects (token-only, no agentId needed)
+// GET /api/agents/stream?token=xxx  — gateway CLI SSE stream (token-only endpoint)
 agentsRouter.get("/agents/stream", (req, res) => {
   const token = req.query["token"] as string | undefined;
   if (!token) { res.status(401).json({ error: "token required" }); return; }
   handleAgentStream(token, res);
 });
 
-// GET /api/agents/:id/stream?token=xxx  — alternate with agentId in path
-agentsRouter.get("/agents/:id/stream", (req, res) => {
-  const token = req.query["token"] as string | undefined;
-  if (!token) { res.status(401).json({ error: "token required" }); return; }
-  handleAgentStream(token, res);
-});
-
-// GET /api/agents/:id/events  — browser listens for agent events via SSE
-agentsRouter.get("/agents/:id/events", (req, res) => {
-  handleDashboardStream(req.params.id!, res);
-});
-
-// POST /api/agents/relay-anon?token=xxx  — gateway CLI relay before agentId is known
+// POST /api/agents/relay-anon?token=xxx  — gateway CLI posts events back (before agentId known)
 agentsRouter.post("/agents/relay-anon", (req, res) => {
   const token = req.query["token"] as string | undefined;
   if (!token) { res.status(401).json({ error: "token required" }); return; }
@@ -64,7 +46,28 @@ agentsRouter.post("/agents/relay-anon", (req, res) => {
   res.json({ ok });
 });
 
-// POST /api/agents/:id/relay?token=xxx  — gateway CLI sends events/results back
+// ── Dynamic routes (/:id) ─────────────────────────────────────────────────────
+
+// GET /api/agents/:id
+agentsRouter.get("/agents/:id", (req, res) => {
+  const agent = agents.get(req.params.id!);
+  if (!agent) { res.status(404).json({ error: "Agent not found" }); return; }
+  res.json({ agentId: agent.id, did: agent.did, name: agent.name, status: isAgentOnline(agent.id) ? "online" : "offline" });
+});
+
+// GET /api/agents/:id/stream?token=xxx  — alternate with explicit agentId
+agentsRouter.get("/agents/:id/stream", (req, res) => {
+  const token = req.query["token"] as string | undefined;
+  if (!token) { res.status(401).json({ error: "token required" }); return; }
+  handleAgentStream(token, res);
+});
+
+// GET /api/agents/:id/events  — browser SSE stream
+agentsRouter.get("/agents/:id/events", (req, res) => {
+  handleDashboardStream(req.params.id!, res);
+});
+
+// POST /api/agents/:id/relay?token=xxx  — gateway CLI posts events back
 agentsRouter.post("/agents/:id/relay", (req, res) => {
   const token = req.query["token"] as string | undefined;
   if (!token) { res.status(401).json({ error: "token required" }); return; }
