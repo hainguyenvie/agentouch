@@ -20,8 +20,9 @@ function parseArg(name: string): string | undefined {
 
 const token = parseArg("token");
 const serverUrl = parseArg("server") ?? "wss://connectingverse.replit.app/ws";
-const openclawUrl = parseArg("openclaw") ?? "http://localhost:7331/v1";
-const model = parseArg("model") ?? "default";
+const openclawUrl = parseArg("openclaw") ?? "http://localhost:18789/v1";
+const model = parseArg("model") ?? "openclaw:main";
+const openclawToken = parseArg("openclaw-token");
 
 if (!token) {
   console.error("Error: --token=<token> is required.");
@@ -45,7 +46,7 @@ console.log("");
 
 const client = new AgentverseClient(serverUrl, token);
 
-const bridge = new OpenClawBridge(openclawUrl, model, {
+const bridge = new OpenClawBridge(openclawUrl, model, openclawToken, {
   onTaskStarted(taskId) {
     console.log(`[task:${taskId}] Started`);
     client.sendRelay({ type: "event", eventType: "task_started", taskId, data: {} });

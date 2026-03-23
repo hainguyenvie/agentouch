@@ -16,6 +16,7 @@ export class OpenClawBridge {
   constructor(
     private readonly baseUrl: string,
     private readonly model: string,
+    private readonly token: string | undefined,
     private readonly events: BridgeEvents,
   ) {}
 
@@ -28,7 +29,10 @@ export class OpenClawBridge {
     try {
       const response = await fetch(`${this.baseUrl}/chat/completions`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}),
+        },
         body: JSON.stringify({
           model: this.model,
           messages: [{ role: "user", content }],
