@@ -6,8 +6,8 @@ import { rm, readFile } from "fs/promises";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Bundle express and cors; keep everything else external
-const allowlist = ["cors", "express"];
+// Bundle these into the CJS output so the deployed artifact is self-contained
+const allowlist = ["cors", "express", "ws"];
 
 async function buildAll() {
   const distDir = path.resolve(__dirname, "dist");
