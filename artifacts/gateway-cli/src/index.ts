@@ -3,9 +3,9 @@
  * @agentverse/gateway — Local gateway CLI
  *
  * Usage:
- *   npx @agentverse/gateway --token=<token>
- *   npx @agentverse/gateway --token=<token> --openclaw=http://localhost:7331/v1
- *   npx @agentverse/gateway --token=<token> --server=wss://connectingverse.replit.app
+ *   pnpm dev -- --token=<agentverse-token>
+ *   pnpm dev -- --token=<agentverse-token> --openclaw-token=<openclaw-gateway-token>
+ *   pnpm dev -- --token=<agentverse-token> --openclaw=ws://127.0.0.1:18789
  */
 
 import { AgentverseClient } from "./ws-client.js";
@@ -19,9 +19,8 @@ function parseArg(name: string): string | undefined {
 }
 
 const token = parseArg("token");
-const serverUrl = parseArg("server") ?? "wss://connectingverse.replit.app/ws";
-const openclawUrl = parseArg("openclaw") ?? "http://localhost:18789/v1";
-const model = parseArg("model") ?? "openclaw:main";
+const serverUrl = parseArg("server") ?? "https://connectingverse.replit.app";
+const openclawWsUrl = parseArg("openclaw") ?? "ws://127.0.0.1:18789";
 const openclawToken = parseArg("openclaw-token");
 
 if (!token) {
@@ -38,15 +37,14 @@ console.log("  ║      AgentVerse Gateway v0.1.0        ║");
 console.log("  ╚═══════════════════════════════════════╝");
 console.log("");
 console.log(`  Server  : ${serverUrl}`);
-console.log(`  OpenClaw: ${openclawUrl}`);
-console.log(`  Model   : ${model}`);
+console.log(`  OpenClaw: ${openclawWsUrl}`);
 console.log("");
 
 // ─── Setup ────────────────────────────────────────────────────────────────────
 
 const client = new AgentverseClient(serverUrl, token);
 
-const bridge = new OpenClawBridge(openclawUrl, model, openclawToken, {
+const bridge = new OpenClawBridge(openclawWsUrl, openclawToken, {
   onTaskStarted(taskId) {
     console.log(`[task:${taskId}] Started`);
     client.sendRelay({ type: "event", eventType: "task_started", taskId, data: {} });
@@ -54,6 +52,13 @@ const bridge = new OpenClawBridge(openclawUrl, model, openclawToken, {
   onStreamChunk(taskId, delta, done) {
     if (delta) process.stdout.write(delta);
     client.sendRelay({ type: "stream_chunk", taskId, delta, done });
+  },
+  onToolCall(taskId, tool, input) {
+    // Show tool call in terminal
+    const inputPreview = JSON.stringify(input).slice(0, 60);
+    console.log(`\n[task:${taskId}] 🔧 ${tool}(${inputPreview}${inputPreview.length >= 60 ? "..." : ""})`);
+    // Relay to dashboard
+    client.sendRelay({ type: "tool_call", taskId, tool, input });
   },
   onTaskResult(taskId, status, content) {
     console.log(`\n[task:${taskId}] ${status.toUpperCase()} (${content.length} chars)`);
@@ -99,5 +104,6 @@ client.connect();
 process.on("SIGINT", () => {
   console.log("\n[gateway] Shutting down...");
   client.close();
+  bridge.close();
   process.exit(0);
 });

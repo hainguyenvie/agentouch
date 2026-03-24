@@ -92,7 +92,7 @@ export function handleDashboardStream(agentId: string, res: Response) {
 // ─── Relay: gateway CLI posts events/results back ────────────────────────────
 
 export interface RelayPayload {
-  type: "heartbeat" | "event" | "stream_chunk" | "task_result";
+  type: "heartbeat" | "event" | "stream_chunk" | "task_result" | "tool_call";
   eventType?: string;
   taskId?: string;
   data?: unknown;
@@ -100,6 +100,9 @@ export interface RelayPayload {
   done?: boolean;
   status?: "done" | "failed";
   content?: string;
+  // tool_call fields
+  tool?: string;
+  input?: Record<string, unknown>;
 }
 
 export function handleRelay(token: string, payload: RelayPayload) {
@@ -125,6 +128,15 @@ export function handleRelay(token: string, payload: RelayPayload) {
       taskId: payload.taskId,
       delta: payload.delta,
       done: payload.done,
+    });
+    return true;
+  }
+
+  if (payload.type === "tool_call" && payload.taskId) {
+    broadcastToDashboard(agentId, "tool_call", {
+      taskId: payload.taskId,
+      tool: payload.tool,
+      input: payload.input,
     });
     return true;
   }

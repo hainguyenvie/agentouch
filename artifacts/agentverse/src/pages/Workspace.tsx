@@ -56,6 +56,20 @@ function useAgentWS(agentId: string | null): AgentWsState {
           colorClass: "bg-primary/10", from: agentName,
           text: `<span class="font-mono text-[11px] text-white/40">[${evType}]</span> ${taskId ?? ""}`,
         }, ...prev]);
+      } else if (evt === "tool_call") {
+        const tool = data["tool"] as string;
+        const input = data["input"] as Record<string, unknown> | undefined;
+        const inputStr = input ? Object.entries(input).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(", ") : "";
+        const now = new Date();
+        const time = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+        setLiveEvents((prev) => [{
+          id: `tool-${Date.now()}`,
+          time,
+          icon: tool === "bash" ? "💻" : tool === "web_search" || tool === "search" ? "🌐" : tool === "read_file" ? "📄" : "🔧",
+          colorClass: "bg-purple-500/10",
+          from: agentName,
+          text: `<span class="font-mono text-[11px] text-purple-400">[${tool}]</span> <span class="font-mono text-[11px] text-white/50">${inputStr.slice(0, 80)}${inputStr.length > 80 ? "…" : ""}</span>`,
+        }, ...prev]);
       } else if (evt === "stream_chunk") {
         const delta = data["delta"] as string;
         if (data["done"]) setStreamChunk("");
@@ -80,7 +94,7 @@ function useAgentWS(agentId: string | null): AgentWsState {
       }
     };
 
-    for (const evt of ["agent_status","agent_online","agent_offline","event","stream_chunk","task_result"]) {
+    for (const evt of ["agent_status","agent_online","agent_offline","event","stream_chunk","task_result","tool_call"]) {
       es.addEventListener(evt, (e: Event) => {
         try { handle(evt, JSON.parse((e as MessageEvent).data as string) as Record<string, unknown>); } catch { /* skip */ }
       });
@@ -462,6 +476,8 @@ function CenterPanel({
   toast,
   liveEvents = [],
   onSendTask,
+  streamChunk = "",
+  activeTaskId = null,
 }: {
   avc: number;
   onAddAVC: (n: number) => void;
@@ -469,6 +485,8 @@ function CenterPanel({
   toast: (m: string, c?: "green" | "red" | "amber") => void;
   liveEvents?: FeedItem[];
   onSendTask?: (content: string) => void;
+  streamChunk?: string;
+  activeTaskId?: string | null;
 }) {
   const [filter, setFilter] = useState<Filter>("all");
   const [logOpen, setLogOpen] = useState(false);
@@ -623,6 +641,28 @@ function CenterPanel({
             className="overflow-hidden flex-shrink-0 mt-3"
           >
             <A2ALog extraLines={extraLogLines} />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Live Stream Output */}
+      <AnimatePresence>
+        {streamChunk && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="mx-4 mt-3 mb-0 flex-shrink-0 overflow-hidden"
+          >
+            <div className="bg-[#020407] rounded-xl border border-primary/20 px-4 py-3 font-mono text-[11px] text-white/70 leading-relaxed max-h-[140px] overflow-y-auto">
+              <div className="flex items-center gap-1.5 mb-2 text-primary text-[10px]">
+                <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                OpenClaw đang stream
+                {activeTaskId && <span className="text-white/25 ml-1">· {activeTaskId.slice(0, 8)}</span>}
+              </div>
+              <span className="text-white/60">{streamChunk}</span>
+              <span className="inline-block w-[6px] h-[12px] bg-primary/70 ml-0.5 animate-pulse" />
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -936,6 +976,8 @@ export default function Workspace() {
           toast={toast.show}
           liveEvents={agentId ? agentWs.liveEvents : []}
           onSendTask={agentId ? agentWs.sendTask : undefined}
+          streamChunk={agentId ? agentWs.streamChunk : ""}
+          activeTaskId={agentId ? agentWs.activeTaskId : null}
         />
         <RightPanel onAddAVC={addAVC} onAddXP={addXP} toast={toast.show} />
       </div>
